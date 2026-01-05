@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>便利贴</title>
+    <link href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css" rel="stylesheet">
+    <style>
+        /* CSS 变量 - 从主样式继承 */
+        :root {
+            --bg-color: #fbf1c7;
+            --text-color: #3c3836;
+            --accent-color: #b57614;
+            --link-color: #076678;
+            --border-color: rgba(60, 56, 54, 0.15);
+            --h1-color: #9d0006;
+            --h2-bg: rgba(250, 189, 47, 0.2);
+            --h2-color: #b57614;
+            --h3-color: #076678;
+            --blockquote-border: #98971a;
+            --blockquote-bg: rgba(152, 151, 26, 0.1);
+            --font-family: "LXGW WenKai", "霞鹜文楷", "Microsoft YaHei", sans-serif;
+            --font-size: 15px;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #20242a;
+            --text-color: #dcddde;
+            --accent-color: #ff7575;
+            --link-color: #8be9fd;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --h1-color: #ff7575;
+            --h2-bg: rgba(255, 184, 108, 0.1);
+            --h2-color: #ffb86c;
+            --h3-color: #8be9fd;
+            --blockquote-border: #50fa7b;
+            --blockquote-bg: rgba(80, 250, 123, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: var(--font-family);
+            font-size: var(--font-size);
+            background: var(--bg-color);
+            color: var(--text-color);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        /* 标题栏 - 可拖拽 */
+        .title-bar {
+            height: 32px;
+            background: rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: move;
+            -webkit-app-region: drag;
+        }
+
+        .title-bar .title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .title-bar .controls {
+            display: flex;
+            gap: 8px;
+            -webkit-app-region: no-drag;
+        }
+
+        .title-bar .controls span {
+            cursor: pointer;
+            opacity: 0.6;
+            font-size: 12px;
+            padding: 2px 4px;
+            transition: 0.2s;
+        }
+
+        .title-bar .controls span:hover {
+            opacity: 1;
+            color: var(--accent-color);
+        }
+
+        .title-bar .controls .close-btn {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .title-bar .controls .close-btn:hover {
+            background: #e81123;
+            color: white;
+            border-radius: 3px;
+        }
+
+        /* 内容区 */
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 15px;
+            user-select: text;
+        }
+
+        /* 编辑模式 */
+        .content.editing {
+            padding: 0;
+        }
+
+        .content textarea {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            color: var(--text-color);
+            font-family: var(--font-family);
+            font-size: var(--font-size);
+            line-height: 1.7;
+            padding: 12px 15px;
+            resize: none;
+            outline: none;
+        }
+
+        /* Markdown 渲染样式 */
+        .markdown-body {
+            line-height: 1.7;
+        }
+
+        .markdown-body h1 {
+            font-size: 1.5em;
+            color: var(--h1-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.2em;
+            margin-bottom: 0.5em;
+        }
+
+        .markdown-body h2 {
+            font-size: 1.3em;
+            color: var(--h2-color);
+            background: var(--h2-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 0.8em 0 0.4em 0;
+        }
+
+        .markdown-body h3 {
+            font-size: 1.1em;
+            color: var(--h3-color);
+            border-left: 3px solid var(--h3-color);
+            padding-left: 8px;
+            margin: 0.8em 0 0.4em 0;
+        }
+
+        .markdown-body h4 {
+            font-size: 1em;
+            color: var(--accent-color);
+            font-style: italic;
+            margin: 0.6em 0 0.3em 0;
+        }
+
+        .markdown-body p {
+            margin: 0.6em 0;
+        }
+
+        .markdown-body strong {
+            color: var(--accent-color);
+        }
+
+        .markdown-body a {
+            color: var(--link-color);
+            text-decoration: none;
+            border-bottom: 1px dashed var(--link-color);
+        }
+
+        .markdown-body ul,
+        .markdown-body ol {
+            padding-left: 20px;
+            margin: 0.5em 0;
+        }
+
+        .markdown-body li {
+            margin-bottom: 4px;
+        }
+
+        .markdown-body blockquote {
+            margin: 0.5em 0;
+            padding: 6px 12px;
+            border-left: 4px solid var(--blockquote-border);
+            background: var(--blockquote-bg);
+            border-radius: 0 6px 6px 0;
+        }
+
+        .markdown-body code {
+            font-family: Consolas, Monaco, monospace;
+            font-size: 0.9em;
+            padding: 0.1em 0.3em;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 3px;
+            color: var(--accent-color);
+        }
+
+        .markdown-body pre {
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 0.5em 0;
+        }
+
+        .markdown-body pre code {
+            padding: 0;
+            background: transparent;
+            color: var(--text-color);
+        }
+
+        /* 调整大小手柄 */
+        .resize-handle {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 15px;
+            height: 15px;
+            cursor: nwse-resize;
+            opacity: 0.3;
+            font-size: 10px;
+            color: var(--text-color);
+            z-index: 100;
+        }
+
+        .resize-handle:hover {
+            opacity: 1;
+            color: var(--accent-color);
+        }
+
+        /* 滚动条 */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(128, 128, 128, 0.2);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(128, 128, 128, 0.4);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 标题栏 -->
+    <div class="title-bar" id="title-bar">
+        <span class="title" id="note-title">便利贴</span>
+        <div class="controls">
+            <span class="edit-btn" id="btn-edit" title="编辑">✏️</span>
+            <span class="pin-btn" id="btn-pin" title="置顶">📌</span>
+            <span class="close-btn" id="btn-close" title="关闭">✕</span>
+        </div>
+    </div>
+
+    <!-- 内容区 -->
+    <div class="content markdown-body" id="content">
+        <!-- Markdown渲染内容 -->
+    </div>
+
+    <!-- 调整大小手柄 -->
+    <div class="resize-handle" id="resize-handle">⤡</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // 获取URL参数中的便利贴ID
+        const urlParams = new URLSearchParams(window.location.search);
+        const noteId = urlParams.get('id');
+        const API_BASE = '/api';
+
+        let noteData = null;
+        let isEditing = false;
+        let isPinned = false;
+
+        // DOM元素
+        const titleEl = document.getElementById('note-title');
+        const contentEl = document.getElementById('content');
+        const btnEdit = document.getElementById('btn-edit');
+        const btnPin = document.getElementById('btn-pin');
+        const btnClose = document.getElementById('btn-close');
+
+        // 初始化marked
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({
+                breaks: true,
+                gfm: true,
+                headerIds: false,
+                mangle: false,
+            });
+        }
+
+        // API调用
+        async function api(endpoint, method = 'GET', data = null) {
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+            };
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+            const response = await fetch(API_BASE + endpoint, options);
+            return await response.json();
+        }
+
+        // 加载便利贴
+        async function loadNote() {
+            if (!noteId) {
+                contentEl.innerHTML = '<p>未找到便利贴</p>';
+                return;
+            }
+
+            try {
+                noteData = await api(`/notes/${noteId}`);
+                titleEl.textContent = noteData.title || '便利贴';
+                document.title = noteData.title || '便利贴';
+                renderContent();
+            } catch (error) {
+                console.error('Failed to load note:', error);
+                contentEl.innerHTML = '<p>加载失败</p>';
+            }
+        }
+
+        // 渲染内容
+        function renderContent() {
+            if (!noteData) return;
+
+            if (typeof marked !== 'undefined') {
+                contentEl.innerHTML = marked.parse(noteData.content || '');
+            } else {
+                contentEl.textContent = noteData.content || '';
+            }
+        }
+
+        // 切换编辑模式
+        function toggleEdit() {
+            isEditing = !isEditing;
+
+            if (isEditing) {
+                // 进入编辑模式
+                contentEl.classList.add('editing');
+                contentEl.innerHTML = `<textarea id="editor">${noteData.content || ''}</textarea>`;
+                document.getElementById('editor').focus();
+                btnEdit.textContent = '💾';
+                btnEdit.title = '保存';
+            } else {
+                // 保存并退出编辑模式
+                const editor = document.getElementById('editor');
+                if (editor) {
+                    noteData.content = editor.value;
+                    saveNote();
+                }
+                contentEl.classList.remove('editing');
+                renderContent();
+                btnEdit.textContent = '✏️';
+                btnEdit.title = '编辑';
+            }
+        }
+
+        // 保存便利贴
+        async function saveNote() {
+            if (!noteData || !noteId) return;
+
+            try {
+                await api(`/notes/${noteId}`, 'PUT', {
+                    title: noteData.title,
+                    content: noteData.content
+                });
+            } catch (error) {
+                console.error('Failed to save note:', error);
+            }
+        }
+
+        // 切换置顶
+        function togglePin() {
+            isPinned = !isPinned;
+            btnPin.style.opacity = isPinned ? '1' : '0.6';
+            // 通知后端（如果有pywebview API）
+            if (window.pywebview) {
+                window.pywebview.api.set_on_top(isPinned);
+            }
+        }
+
+        // 关闭窗口
+        function closeWindow() {
+            // 如果在编辑模式，先保存
+            if (isEditing) {
+                const editor = document.getElementById('editor');
+                if (editor) {
+                    noteData.content = editor.value;
+                    saveNote();
+                }
+            }
+
+            // 通知后端关闭
+            if (window.pywebview) {
+                window.pywebview.api.close_sticky(noteId);
+            } else {
+                window.close();
+            }
+        }
+
+        // 绑定事件
+        btnEdit.addEventListener('click', toggleEdit);
+        btnPin.addEventListener('click', togglePin);
+        btnClose.addEventListener('click', closeWindow);
+
+        // 双击内容区进入编辑
+        contentEl.addEventListener('dblclick', () => {
+            if (!isEditing) {
+                toggleEdit();
+            }
+        });
+
+        // 点击标题栏退出编辑模式
+        document.getElementById('title-bar').addEventListener('click', (e) => {
+            // 只有点击标题栏本身（非按钮）时触发
+            if (isEditing && e.target.id === 'title-bar' || e.target.id === 'note-title') {
+                toggleEdit();
+            }
+        });
+
+        // 快捷键
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+S 保存
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                if (isEditing) {
+                    toggleEdit(); // 保存并退出编辑
+                }
+            }
+            // Escape 退出编辑
+            if (e.key === 'Escape' && isEditing) {
+                toggleEdit();
+            }
+        });
+
+        // 编辑器失去焦点时自动保存并退出编辑
+        contentEl.addEventListener('focusout', (e) => {
+            // 延迟检查，因为焦点可能转移到编辑器内其他元素
+            setTimeout(() => {
+                if (isEditing) {
+                    const editor = document.getElementById('editor');
+                    // 如果焦点不在编辑器内，则退出编辑
+                    if (editor && !editor.contains(document.activeElement) && document.activeElement !== editor) {
+                        toggleEdit();
+                    }
+                }
+            }, 100);
+        });
+
+        // 初始化
+        loadNote();
+
+        // 应用主题
+        async function applyTheme() {
+            try {
+                const config = await api('/config');
+                if (config.theme && config.theme !== 'parchment') {
+                    document.body.dataset.theme = config.theme;
+                }
+                if (config.font_family) {
+                    document.documentElement.style.setProperty('--font-family', config.font_family);
+                }
+                if (config.font_size) {
+                    document.documentElement.style.setProperty('--font-size', config.font_size + 'px');
+                }
+            } catch (e) { }
+        }
+        applyTheme();
+    </script>
+</body>
+
+</html>

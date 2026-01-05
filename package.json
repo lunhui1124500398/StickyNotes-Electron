@@ -1,0 +1,16 @@
+{
+  "name": "stickynotes-electron",
+  "version": "1.0.0",
+  "description": "StickyNotes Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "keywords": ["stickynotes", "markdown", "electron"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

@@ -1,0 +1,181 @@
+const fs = require('fs');
+const path = require('path');
+
+class NotesManager {
+    constructor(dataDir) {
+        this.dataDir = dataDir;
+        this.notesDir = path.join(dataDir, 'notes');
+        this.ensureDirectories();
+    }
+
+    ensureDirectories() {
+        if (!fs.existsSync(this.dataDir)) {
+            fs.mkdirSync(this.dataDir, { recursive: true });
+        }
+        if (!fs.existsSync(this.notesDir)) {
+            fs.mkdirSync(this.notesDir, { recursive: true });
+        }
+    }
+
+    generateId() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    parseFrontmatter(content) {
+        const lines = content.split('\n');
+        if (lines[0] !== '---') return { metadata: {}, content };
+        let endIndex = -1;
+        for (let i = 1; i < lines.length; i++) {
+            if (lines[i].trim() === '---') { endIndex = i; break; }
+        }
+        if (endIndex === -1) return { metadata: {}, content };
+        const metadata = {};
+        for (let i = 1; i < endIndex; i++) {
+            const idx = lines[i].indexOf(':');
+            if (idx > 0) {
+                const key = lines[i].substring(0, idx).trim();
+                let val = lines[i].substring(idx + 1).trim();
+                if (val === 'true') val = true;
+                else if (val === 'false') val = false;
+                else if (!isNaN(val) && val !== '') val = Number(val);
+                metadata[key] = val;
+            }
+        }
+        return { metadata, content: lines.slice(endIndex + 1).join('\n') };
+    }
+
+    createFrontmatter(note) {
+        return '---\n' +
+            'id: ' + note.id + '\n' +
+            'title: ' + note.title + '\n' +
+            'created_at: ' + note.created_at + '\n' +
+            'updated_at: ' + note.updated_at + '\n' +
+            'is_hidden: ' + note.is_hidden + '\n' +
+            'is_pinned: ' + note.is_pinned + '\n' +
+            'position_x: ' + note.position_x + '\n' +
+            'position_y: ' + note.position_y + '\n' +
+            'width: ' + note.width + '\n' +
+            'height: ' + note.height + '\n' +
+            '---\n';
+    }
+
+    getSafeFilename(note) {
+        const safeName = note.title.replace(/[<>:"\/\\|?*]/g, '_').substring(0, 50);
+        return note.id.substring(0, 8) + '_' + safeName + '.md';
+    }
+
+    getAllNotes(includeHidden) {
+        if (!fs.existsSync(this.notesDir)) return [];
+        const notes = [];
+        for (const file of fs.readdirSync(this.notesDir)) {
+            if (!file.endsWith('.md')) continue;
+            try {
+                const content = fs.readFileSync(path.join(this.notesDir, file), 'utf-8');
+                const parsed = this.parseFrontmatter(content);
+                const metadata = parsed.metadata;
+                const body = parsed.content;
+                const note = {
+                    id: metadata.id || file.replace('.md', ''),
+                    title: metadata.title || 'Untitled',
+                    content: body,
+                    created_at: metadata.created_at || new Date().toISOString(),
+                    updated_at: metadata.updated_at || new Date().toISOString(),
+                    is_hidden: metadata.is_hidden || false,
+                    is_pinned: metadata.is_pinned || false,
+                    position_x: metadata.position_x || 100,
+                    position_y: metadata.position_y || 100,
+                    width: metadata.width || 300,
+                    height: metadata.height || 200
+                };
+                if (!includeHidden && note.is_hidden) continue;
+                notes.push(note);
+            } catch (e) { console.error(e); }
+        }
+        return notes.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    }
+
+    getNote(noteId) {
+        return this.getAllNotes(true).find(n => n.id === noteId) || null;
+    }
+
+    createNote(title, content) {
+        const now = new Date().toISOString();
+        const note = {
+            id: this.generateId(),
+            title: title || 'New Note',
+            content: content || '',
+            created_at: now,
+            updated_at: now,
+            is_hidden: false,
+            is_pinned: false,
+            position_x: 100,
+            position_y: 100,
+            width: 300,
+            height: 200
+        };
+        this.saveNote(note);
+        return note;
+    }
+
+    saveNote(note) {
+        this.ensureDirectories();
+        note.updated_at = new Date().toISOString();
+        const filename = this.getSafeFilename(note);
+        const files = fs.readdirSync(this.notesDir);
+        for (const file of files) {
+            if (file.startsWith(note.id.substring(0, 8)) && file !== filename) {
+                fs.unlinkSync(path.join(this.notesDir, file));
+            }
+        }
+        fs.writeFileSync(path.join(this.notesDir, filename), this.createFrontmatter(note) + note.content, 'utf-8');
+        return note;
+    }
+
+    updateNote(noteId, updates) {
+        const note = this.getNote(noteId);
+        if (!note) return null;
+        Object.assign(note, updates);
+        return this.saveNote(note);
+    }
+
+    deleteNote(noteId) {
+        for (const file of fs.readdirSync(this.notesDir)) {
+            if (file.startsWith(noteId.substring(0, 8))) {
+                const trashDir = path.join(this.dataDir, 'trash');
+                if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
+                fs.renameSync(path.join(this.notesDir, file), path.join(trashDir, file));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    toggleHidden(noteId) {
+        const note = this.getNote(noteId);
+        if (!note) return null;
+        note.is_hidden = !note.is_hidden;
+        return this.saveNote(note);
+    }
+
+    unhideAll() {
+        this.getAllNotes(true).forEach(n => {
+            if (n.is_hidden) {
+                n.is_hidden = false;
+                this.saveNote(n);
+            }
+        });
+        return true;
+    }
+
+    searchNotes(query) {
+        if (!query) return this.getAllNotes();
+        const q = query.toLowerCase();
+        return this.getAllNotes().filter(n => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q));
+    }
+}
+
+module.exports = NotesManager;
