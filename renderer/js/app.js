@@ -19,10 +19,6 @@ const state = {
     recordingHotkey: null,  // 正在录制的快捷键字段
 };
 
-// API基础URL
-const API_BASE = '/api';
-
-// ============================================
 // DOM 元素引用
 // ============================================
 
@@ -56,40 +52,12 @@ function initMarked() {
 }
 
 // ============================================
-// API 调用
-// ============================================
-
-async function api(endpoint, method = 'GET', data = null) {
-    const options = {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-    };
-
-    if (data) {
-        options.body = JSON.stringify(data);
-    }
-
-    try {
-        const response = await fetch(API_BASE + endpoint, options);
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        return await response.json();
-    } catch (error) {
-        console.error('API Error:', error);
-        showStatus('操作失败: ' + error.message, 'error');
-        throw error;
-    }
-}
-
-// ============================================
 // 便利贴管理
 // ============================================
 
 async function loadNotes() {
     try {
-        const includeHidden = state.showHidden ? 'true' : 'false';
-        state.notes = await api(`/notes?include_hidden=${includeHidden}`);
+        state.notes = await window.electronAPI.getNotes(state.showHidden);
         renderNotesList();
 
         // 如果没有选中的便利贴，选中第一个
@@ -100,6 +68,7 @@ async function loadNotes() {
         }
     } catch (error) {
         console.error('Failed to load notes:', error);
+        showStatus('加载便利贴失败', 'error');
     }
 }
 
@@ -180,7 +149,7 @@ async function selectNote(noteId) {
 
 async function createNote() {
     try {
-        const note = await api('/notes', 'POST', {
+        const note = await window.electronAPI.createNote({
             title: '新便利贴',
             content: ''
         });
@@ -195,6 +164,7 @@ async function createNote() {
         showStatus('已创建新便利贴');
     } catch (error) {
         console.error('Failed to create note:', error);
+        showStatus('创建便利贴失败', 'error');
     }
 }
 
@@ -210,7 +180,7 @@ async function saveCurrentNote() {
     }
 
     try {
-        const updated = await api(`/notes/${state.currentNote.id}`, 'PUT', {
+        const updated = await window.electronAPI.updateNote(state.currentNote.id, {
             title,
             content
         });
@@ -243,7 +213,7 @@ async function deleteCurrentNote() {
     }
 
     try {
-        await api(`/notes/${state.currentNote.id}`, 'DELETE');
+        await window.electronAPI.deleteNote(state.currentNote.id);
 
         // 从列表中移除
         const index = state.notes.findIndex(n => n.id === state.currentNote.id);
@@ -262,6 +232,7 @@ async function deleteCurrentNote() {
         showStatus('已删除');
     } catch (error) {
         console.error('Failed to delete note:', error);
+        showStatus('删除失败', 'error');
     }
 }
 
@@ -269,7 +240,7 @@ async function toggleHiddenNote() {
     if (!state.currentNote) return;
 
     try {
-        const result = await api(`/notes/${state.currentNote.id}/toggle-hidden`, 'POST');
+        const result = await window.electronAPI.toggleHidden(state.currentNote.id);
         state.currentNote.is_hidden = result.is_hidden;
 
         showStatus(result.is_hidden ? '已隐藏' : '已显示');
@@ -282,57 +253,56 @@ async function toggleHiddenNote() {
         }
     } catch (error) {
         console.error('Failed to toggle hidden:', error);
+        showStatus('操作失败', 'error');
     }
 }
 
 // 显示所有隐藏的便利贴（解隐藏）
 async function unhideAllNotes() {
     try {
-        await api('/notes/show-all', 'POST');
+        await window.electronAPI.unhideAll();
         showStatus('已显示所有隐藏便利贴');
         await loadNotes();
     } catch (error) {
         console.error('Failed to unhide all notes:', error);
+        showStatus('操作失败', 'error');
     }
 }
 
 // 弹出当前便利贴为浮动窗口
-function popoutCurrentNote() {
+async function popoutCurrentNote() {
+    console.log('popoutCurrentNote called, currentNote:', state.currentNote);
+
     if (!state.currentNote) {
         showStatus('请先选择一个便利贴');
         return;
     }
 
     // 先保存当前便利贴
-    saveCurrentNote();
+    await saveCurrentNote();
 
     const noteId = state.currentNote.id;
     const note = state.currentNote;
 
     // 计算窗口位置和大小
-    const width = note.width || 320;
-    const height = note.height || 280;
-    const left = note.position_x || 100;
-    const top = note.position_y || 100;
+    const options = {
+        width: note.width || 320,
+        height: note.height || 280,
+        x: note.position_x || 100,
+        y: note.position_y || 100
+    };
 
-    // 打开新窗口
-    const stickyUrl = `/sticky.html?id=${noteId}`;
+    console.log('Opening sticky with:', { noteId, title: note.title, options });
+    console.log('electronAPI available:', !!window.electronAPI);
+    console.log('openSticky available:', !!(window.electronAPI && window.electronAPI.openSticky));
 
-    // 尝试使用 pywebview API（如果在桌面模式）
-    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_sticky) {
-        window.pywebview.api.open_sticky(noteId, note.title, width, height, left, top);
+    // 使用 Electron API 打开浮动窗口
+    if (window.electronAPI && window.electronAPI.openSticky) {
+        window.electronAPI.openSticky(noteId, note.title, options);
         showStatus('已弹出为浮动便利贴');
     } else {
-        // 浏览器模式：打开新标签页/窗口
-        const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no`;
-        const newWindow = window.open(stickyUrl, `sticky_${noteId}`, features);
-
-        if (newWindow) {
-            showStatus('已在新窗口打开');
-        } else {
-            // 弹窗被阻止
-            showStatus('请允许弹出窗口或使用桌面模式');
-        }
+        console.error('electronAPI.openSticky not available!');
+        showStatus('无法打开浮动窗口');
     }
 }
 
@@ -421,10 +391,11 @@ async function searchNotes(query) {
     }
 
     try {
-        state.notes = await api(`/notes/search?q=${encodeURIComponent(query)}`);
+        state.notes = await window.electronAPI.searchNotes(query);
         renderNotesList();
     } catch (error) {
         console.error('Search failed:', error);
+        showStatus('搜索失败', 'error');
     }
 }
 
@@ -434,10 +405,18 @@ async function searchNotes(query) {
 
 async function loadConfig() {
     try {
-        state.config = await api('/config');
+        state.config = await window.electronAPI.getConfig();
         applyConfig();
     } catch (error) {
         console.error('Failed to load config:', error);
+        // 使用默认配置
+        state.config = {
+            font_size: 16,
+            font_family: 'LXGW WenKai, Microsoft YaHei, sans-serif',
+            theme: 'parchment',
+            auto_start: false,
+            auto_save_interval: 30
+        };
     }
 }
 
@@ -492,6 +471,11 @@ function applyConfig() {
         autoStartCheckbox.checked = config.auto_start;
     }
 
+    const dataPathInput = document.getElementById('setting-data-path');
+    if (dataPathInput) {
+        dataPathInput.value = config.data_path || './data';
+    }
+
     // 更新快捷键显示
     const hotkeyShow = document.getElementById('hotkey-show');
     const hotkeyHide = document.getElementById('hotkey-hide');
@@ -505,11 +489,12 @@ function applyConfig() {
 
 async function saveConfig(updates) {
     try {
-        state.config = await api('/config', 'PUT', updates);
+        state.config = await window.electronAPI.saveConfig(updates);
         applyConfig();
         showStatus('设置已保存');
     } catch (error) {
         console.error('Failed to save config:', error);
+        showStatus('保存设置失败', 'error');
     }
 }
 
@@ -789,6 +774,19 @@ function bindEvents() {
         document.getElementById('font-size-value').textContent = e.target.value + 'px';
     });
 
+    // 数据文件夹浏览
+    const btnBrowseData = document.getElementById('btn-browse-data-path');
+    if (btnBrowseData) {
+        btnBrowseData.addEventListener('click', async () => {
+            if (window.electronAPI && window.electronAPI.selectFolder) {
+                const path = await window.electronAPI.selectFolder();
+                if (path) {
+                    document.getElementById('setting-data-path').value = path;
+                }
+            }
+        });
+    }
+
     // 字体预设下拉框
     const fontPresetSelect = document.getElementById('setting-font-preset');
     const fontFamilyInput = document.getElementById('setting-font-family');
@@ -831,10 +829,12 @@ function bindEvents() {
             fontFamily = fontCustom?.value || '';
         }
 
+        const oldDataPath = state.config.data_path;
         const updates = {
             font_size: parseInt(document.getElementById('setting-font-size').value),
             font_family: fontFamily,
             theme: document.getElementById('setting-theme').value,
+            data_path: document.getElementById('setting-data-path').value,
             auto_start: document.getElementById('setting-auto-start').checked,
             hotkey_show: document.getElementById('hotkey-show').value,
             hotkey_hide_all: document.getElementById('hotkey-hide').value,
@@ -842,6 +842,14 @@ function bindEvents() {
             hotkey_close_stickies: document.getElementById('hotkey-close-stickies').value,
         };
         await saveConfig(updates);
+
+        // 如果数据路径变化，重新加载便利贴
+        if (oldDataPath !== updates.data_path) {
+            state.currentNote = null;
+            await loadNotes();
+            showStatus('数据目录已更改，便利贴已重新加载');
+        }
+
         closeSettings();
     });
 
@@ -885,6 +893,14 @@ async function init() {
     // 初始化窗口控制按钮 (仅桌面模式有效)
     initWindowControls();
 
+    // 监听全局快捷键触发的弹出事件
+    if (window.electronAPI && window.electronAPI.onTriggerPopout) {
+        window.electronAPI.onTriggerPopout(() => {
+            console.log('Trigger popout received from global hotkey');
+            popoutCurrentNote();
+        });
+    }
+
     showStatus('就绪');
     console.log('StickyNotes ready!');
 }
@@ -893,63 +909,42 @@ async function init() {
 function initWindowControls() {
     const controlsEl = document.getElementById('window-controls');
 
-    // 延迟执行，等待pywebview API就绪
-    setTimeout(() => {
-        // 检测是否是pywebview环境
-        const isPywebview = window.pywebview !== undefined;
+    // 检测是否是 Electron 环境
+    const isElectron = window.electronAPI !== undefined;
 
-        if (!isPywebview) {
-            // 浏览器模式：隐藏控制按钮
-            if (controlsEl) {
-                controlsEl.style.display = 'none';
-            }
-            return;
+    if (!isElectron) {
+        // 浏览器模式：隐藏控制按钮
+        if (controlsEl) {
+            controlsEl.style.display = 'none';
         }
+        return;
+    }
 
-        console.log('pywebview detected, initializing window controls');
+    console.log('Electron detected, initializing window controls');
 
-        // 最小化
-        const btnMinimize = document.getElementById('btn-minimize');
-        if (btnMinimize) {
-            btnMinimize.addEventListener('click', async () => {
-                try {
-                    if (window.pywebview && window.pywebview.api) {
-                        await window.pywebview.api.minimize_window();
-                    }
-                } catch (e) {
-                    console.error('Minimize error:', e);
-                }
-            });
-        }
+    // 最小化
+    const btnMinimize = document.getElementById('btn-minimize');
+    if (btnMinimize) {
+        btnMinimize.addEventListener('click', () => {
+            window.electronAPI.minimize();
+        });
+    }
 
-        // 最大化/还原
-        const btnMaximize = document.getElementById('btn-maximize');
-        if (btnMaximize) {
-            btnMaximize.addEventListener('click', async () => {
-                try {
-                    if (window.pywebview && window.pywebview.api) {
-                        await window.pywebview.api.toggle_maximize();
-                    }
-                } catch (e) {
-                    console.error('Maximize error:', e);
-                }
-            });
-        }
+    // 最大化/还原
+    const btnMaximize = document.getElementById('btn-maximize');
+    if (btnMaximize) {
+        btnMaximize.addEventListener('click', () => {
+            window.electronAPI.maximize();
+        });
+    }
 
-        // 关闭（最小化到托盘）
-        const btnClose = document.getElementById('btn-close-window');
-        if (btnClose) {
-            btnClose.addEventListener('click', async () => {
-                try {
-                    if (window.pywebview && window.pywebview.api) {
-                        await window.pywebview.api.close_window();
-                    }
-                } catch (e) {
-                    console.error('Close error:', e);
-                }
-            });
-        }
-    }, 500); // 延迟500ms等待pywebview API就绪
+    // 关闭（最小化到托盘）
+    const btnClose = document.getElementById('btn-close-window');
+    if (btnClose) {
+        btnClose.addEventListener('click', () => {
+            window.electronAPI.close();
+        });
+    }
 }
 
 // 页面加载完成后初始化

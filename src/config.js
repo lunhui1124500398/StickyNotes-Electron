@@ -35,6 +35,8 @@ class ConfigManager {
     }
 
     getDataDir() {
+        // 使用配置中的路径，或者是默认路径
+        // 注意：loadConfig 必须在调用此方法前完成，否则 this.config 为空
         const dataPath = this.config.data_path || DEFAULT_CONFIG.data_path;
         if (path.isAbsolute(dataPath)) {
             return dataPath;
@@ -43,15 +45,30 @@ class ConfigManager {
     }
 
     getUserConfigPath() {
-        return path.join(this.getDataDir(), 'user_config.json');
+        // 配置文件始终存储在应用根目录下，与数据目录解耦
+        return path.join(this.appDir, 'user_config.json');
     }
 
     loadConfig() {
         const config = { ...DEFAULT_CONFIG };
-        const userConfigPath = path.join(this.getAppDir(), 'data', 'user_config.json');
-        if (fs.existsSync(userConfigPath)) {
+        const configPath = this.getUserConfigPath();
+
+        // 迁移逻辑：如果新位置不存在配置，尝试从旧的默认位置找
+        if (!fs.existsSync(configPath)) {
+            const oldDefaultPath = path.join(this.appDir, 'data', 'user_config.json');
+            if (fs.existsSync(oldDefaultPath)) {
+                try {
+                    fs.copyFileSync(oldDefaultPath, configPath);
+                    console.log('Migrated config from old location to app root');
+                } catch (e) {
+                    console.error('Failed to migrate config:', e);
+                }
+            }
+        }
+
+        if (fs.existsSync(configPath)) {
             try {
-                const userConfig = JSON.parse(fs.readFileSync(userConfigPath, 'utf-8'));
+                const userConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
                 Object.assign(config, userConfig);
             } catch (e) {
                 console.error('Failed to load user config:', e);

@@ -93,35 +93,75 @@
    ============================================ */
 
 .window-controls {
-    position: fixed;
-    top: 0;
-    right: 0;
     display: flex;
-    z-index: 9999;
+    gap: 6px;
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid var(--border-color);
     -webkit-app-region: no-drag;
 }
 
 .win-btn {
-    width: 46px;
-    height: 30px;
+    width: 14px;
+    height: 14px;
     border: none;
-    background: transparent;
-    color: var(--text-color);
-    font-size: 12px;
+    background: rgba(128, 128, 128, 0.3);
+    color: transparent;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 50%;
+    -webkit-app-region: no-drag;
+    position: relative;
 }
 
-.win-btn:hover {
-    background: rgba(128, 128, 128, 0.2);
+.win-btn svg {
+    width: 8px;
+    height: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.win-btn:hover svg {
+    opacity: 1;
+    fill: white;
+}
+
+/* 最小化按钮 - 黄色 */
+.win-btn#btn-minimize {
+    background: #ffbd2e;
+}
+
+.win-btn#btn-minimize:hover {
+    background: #e5a829;
+}
+
+/* 最大化按钮 - 绿色 */
+.win-btn#btn-maximize {
+    background: #27c93f;
+}
+
+.win-btn#btn-maximize:hover {
+    background: #1fb034;
+}
+
+/* 关闭按钮 - 红色 */
+.win-btn.btn-close {
+    background: #ff5f57;
 }
 
 .win-btn.btn-close:hover {
-    background: #e81123;
-    color: white;
+    background: #e54942;
+}
+
+/* 侧边栏头部操作按钮容器 */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    -webkit-app-region: no-drag;
 }
 
 /* ============================================
@@ -180,6 +220,7 @@ body {
     justify-content: space-between;
     padding: 16px;
     border-bottom: 1px solid var(--border-color);
+    -webkit-app-region: drag;
 }
 
 .app-title {
@@ -187,6 +228,7 @@ body {
     font-weight: 600;
     color: var(--accent-color);
     margin: 0;
+    -webkit-app-region: drag;
 }
 
 .search-box {
@@ -326,6 +368,7 @@ body {
     padding: 12px 20px;
     border-bottom: 1px solid var(--border-color);
     background: var(--bar-bg);
+    -webkit-app-region: drag;
 }
 
 .note-title-input {
@@ -337,6 +380,7 @@ body {
     color: var(--text-color);
     outline: none;
     font-family: inherit;
+    -webkit-app-region: no-drag;
 }
 
 .note-title-input::placeholder {
@@ -347,6 +391,7 @@ body {
 .editor-actions {
     display: flex;
     gap: 8px;
+    -webkit-app-region: no-drag;
 }
 
 /* 编辑器容器 */
@@ -620,6 +665,7 @@ body {
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: all 0.15s;
+    -webkit-app-region: no-drag;
 }
 
 .btn-icon:hover {
@@ -759,10 +805,12 @@ body {
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     cursor: pointer;
-    font-family: monospace;
+    font-family: 'Consolas', 'Monaco', 'SF Mono', 'Menlo', monospace;
     font-weight: bold;
     font-size: 0.9rem;
     outline: none;
+    letter-spacing: 1px;
+    text-transform: capitalize;
 }
 
 .hotkey-input:focus {

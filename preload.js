@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     getConfig: () => ipcRenderer.invoke('get-config'),
     saveConfig: (updates) => ipcRenderer.invoke('save-config', updates),
+    selectFolder: () => ipcRenderer.invoke('select-folder'),
 
     minimize: () => ipcRenderer.send('window-minimize'),
     maximize: () => ipcRenderer.send('window-maximize'),
@@ -23,5 +24,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     onConfigChanged: (callback) => {
         ipcRenderer.on('config-changed', (event, config) => callback(config));
+    },
+
+    onTriggerPopout: (callback) => {
+        ipcRenderer.on('trigger-popout', () => callback());
     }
 });

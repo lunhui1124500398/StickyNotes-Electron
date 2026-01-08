@@ -1,7 +1,16 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut, nativeImage, dialog } = require('electron');
 const path = require('path');
 const NotesManager = require('./src/notes-manager');
 const ConfigManager = require('./src/config');
+
+// 禁用 GPU 磁盘缓存以消除权限错误警告
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+app.commandLine.appendSwitch('disable-gpu-program-cache');
+app.commandLine.appendSwitch('disable-gpu-disk-cache');
+app.commandLine.appendSwitch('disable-http-cache');
+
+// 设置缓存路径到用户数据目录，避免权限问题
+app.setPath('cache', path.join(app.getPath('userData'), 'cache'));
 
 let mainWindow = null;
 let tray = null;
@@ -11,7 +20,7 @@ let configManager = null;
 
 function createMainWindow() {
     const config = configManager.getConfig();
-    
+
     mainWindow = new BrowserWindow({
         width: config.window_width || 900,
         height: config.window_height || 650,
@@ -43,11 +52,15 @@ function createMainWindow() {
 }
 
 function createStickyWindow(noteId, title, options = {}) {
+    console.log('createStickyWindow called with:', { noteId, title, options });
+
     if (stickyWindows.has(noteId)) {
+        console.log('Sticky window already exists, focusing');
         stickyWindows.get(noteId).focus();
         return;
     }
 
+    console.log('Creating new sticky window');
     const stickyWin = new BrowserWindow({
         width: options.width || 320,
         height: options.height || 280,
@@ -64,7 +77,10 @@ function createStickyWindow(noteId, title, options = {}) {
         }
     });
 
-    stickyWin.loadFile(path.join(__dirname, 'renderer', 'sticky.html'), {
+    const stickyPath = path.join(__dirname, 'renderer', 'sticky.html');
+    console.log('Loading sticky.html from:', stickyPath);
+
+    stickyWin.loadFile(stickyPath, {
         query: { id: noteId }
     });
 
@@ -73,12 +89,13 @@ function createStickyWindow(noteId, title, options = {}) {
     });
 
     stickyWindows.set(noteId, stickyWin);
+    console.log('Sticky window created successfully');
 }
 
 function createTray() {
     const iconPath = path.join(__dirname, 'assets', 'icon.png');
     let trayIcon;
-    
+
     try {
         trayIcon = nativeImage.createFromPath(iconPath);
         if (trayIcon.isEmpty()) {
@@ -142,6 +159,14 @@ function registerHotkeys() {
         if (config.hotkey_close_stickies) {
             globalShortcut.register(config.hotkey_close_stickies, closeAllStickies);
         }
+        if (config.hotkey_popout) {
+            globalShortcut.register(config.hotkey_popout, () => {
+                // 发送弹出消息到主窗口
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('trigger-popout');
+                }
+            });
+        }
     } catch (e) {
         console.error('Failed to register hotkeys:', e);
     }
@@ -185,7 +210,27 @@ function setupIpcHandlers() {
     });
 
     ipcMain.handle('save-config', async (event, updates) => {
-        return configManager.saveConfig(updates);
+        const oldDataPath = configManager.getDataDir();
+        const result = configManager.saveConfig(updates);
+        const newDataPath = configManager.getDataDir();
+
+        // 如果数据路径变化，重新初始化 NotesManager
+        if (oldDataPath !== newDataPath) {
+            notesManager = new NotesManager(newDataPath);
+            console.log('NotesManager reinitialized with new data path:', newDataPath);
+        }
+        return result;
+    });
+
+    ipcMain.handle('select-folder', async (event) => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            title: '选择数据存储文件夹',
+            properties: ['openDirectory', 'createDirectory']
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+            return null;
+        }
+        return result.filePaths[0];
     });
 
     ipcMain.on('window-minimize', (event) => {
@@ -210,6 +255,7 @@ function setupIpcHandlers() {
     });
 
     ipcMain.on('open-sticky', (event, noteId, title, options) => {
+        console.log('IPC open-sticky received:', { noteId, title, options });
         createStickyWindow(noteId, title, options);
     });
 

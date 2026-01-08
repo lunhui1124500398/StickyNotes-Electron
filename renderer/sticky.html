@@ -297,7 +297,6 @@
         // 获取URL参数中的便利贴ID
         const urlParams = new URLSearchParams(window.location.search);
         const noteId = urlParams.get('id');
-        const API_BASE = '/api';
 
         let noteData = null;
         let isEditing = false;
@@ -320,17 +319,26 @@
             });
         }
 
-        // API调用
-        async function api(endpoint, method = 'GET', data = null) {
-            const options = {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-            };
-            if (data) {
-                options.body = JSON.stringify(data);
+        // API调用 - 使用 Electron IPC
+        async function getNote(id) {
+            if (window.electronAPI) {
+                return await window.electronAPI.getNote(id);
             }
-            const response = await fetch(API_BASE + endpoint, options);
-            return await response.json();
+            return null;
+        }
+
+        async function updateNote(id, data) {
+            if (window.electronAPI) {
+                return await window.electronAPI.updateNote(id, data);
+            }
+            return null;
+        }
+
+        async function getConfig() {
+            if (window.electronAPI) {
+                return await window.electronAPI.getConfig();
+            }
+            return {};
         }
 
         // 加载便利贴
@@ -341,10 +349,14 @@
             }
 
             try {
-                noteData = await api(`/notes/${noteId}`);
-                titleEl.textContent = noteData.title || '便利贴';
-                document.title = noteData.title || '便利贴';
-                renderContent();
+                noteData = await getNote(noteId);
+                if (noteData) {
+                    titleEl.textContent = noteData.title || '便利贴';
+                    document.title = noteData.title || '便利贴';
+                    renderContent();
+                } else {
+                    contentEl.innerHTML = '<p>加载失败</p>';
+                }
             } catch (error) {
                 console.error('Failed to load note:', error);
                 contentEl.innerHTML = '<p>加载失败</p>';
@@ -392,7 +404,7 @@
             if (!noteData || !noteId) return;
 
             try {
-                await api(`/notes/${noteId}`, 'PUT', {
+                await updateNote(noteId, {
                     title: noteData.title,
                     content: noteData.content
                 });
@@ -405,9 +417,9 @@
         function togglePin() {
             isPinned = !isPinned;
             btnPin.style.opacity = isPinned ? '1' : '0.6';
-            // 通知后端（如果有pywebview API）
-            if (window.pywebview) {
-                window.pywebview.api.set_on_top(isPinned);
+            // 通知 Electron 主进程
+            if (window.electronAPI) {
+                window.electronAPI.setStickyOnTop(noteId, isPinned);
             }
         }
 
@@ -422,9 +434,9 @@
                 }
             }
 
-            // 通知后端关闭
-            if (window.pywebview) {
-                window.pywebview.api.close_sticky(noteId);
+            // 通知 Electron 关闭窗口
+            if (window.electronAPI) {
+                window.electronAPI.closeSticky(noteId);
             } else {
                 window.close();
             }
@@ -485,14 +497,14 @@
         // 应用主题
         async function applyTheme() {
             try {
-                const config = await api('/config');
-                if (config.theme && config.theme !== 'parchment') {
+                const config = await getConfig();
+                if (config && config.theme && config.theme !== 'parchment') {
                     document.body.dataset.theme = config.theme;
                 }
-                if (config.font_family) {
+                if (config && config.font_family) {
                     document.documentElement.style.setProperty('--font-family', config.font_family);
                 }
-                if (config.font_size) {
+                if (config && config.font_size) {
                     document.documentElement.style.setProperty('--font-size', config.font_size + 'px');
                 }
             } catch (e) { }
