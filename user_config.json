@@ -1,5 +1,10 @@
 {
   "data_path": "C:\\Users\\Lunhuiwork\\Desktop\\test_notes",
-  "hotkey_hide_all": "ctrl+h",
-  "hotkey_popout": "alt+shift+p"
+  "font_family": "LXGW WenKai, Microsoft YaHei, sans-serif",
+  "font_size": 18,
+  "theme": "dark",
+  "hotkey_show": "ctrl+j",
+  "hotkey_hide_all": "ctrl+alt+h",
+  "hotkey_popout": "alt+shift+p",
+  "hotkey_delete": "delete"
 }

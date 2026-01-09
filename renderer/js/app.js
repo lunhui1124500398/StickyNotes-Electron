@@ -17,7 +17,10 @@ const state = {
     showHidden: false,
     autoSaveTimer: null,
     recordingHotkey: null,  // 正在录制的快捷键字段
+    searchQuery: '',  // 当前搜索关键词
+    settingsChanged: false,  // 设置是否有未保存的更改
 };
+
 
 // DOM 元素引用
 // ============================================
@@ -57,6 +60,8 @@ function initMarked() {
 
 async function loadNotes() {
     try {
+        // 清除搜索状态
+        state.searchQuery = '';
         state.notes = await window.electronAPI.getNotes(state.showHidden);
         renderNotesList();
 
@@ -81,28 +86,54 @@ function renderNotesList() {
     }
 
     state.notes.forEach(note => {
-        const item = createNoteItem(note);
+        const item = createNoteItem(note, state.searchQuery);
         elements.notesList.appendChild(item);
     });
 }
 
-function createNoteItem(note) {
+// 高亮文本中的搜索关键词
+function highlightText(text, query) {
+    if (!query || !text) return escapeHtml(text);
+
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedQuery})`, 'gi');
+    const parts = text.split(regex);
+
+    return parts.map(part => {
+        if (part.toLowerCase() === query.toLowerCase()) {
+            return `<mark class="search-highlight">${escapeHtml(part)}</mark>`;
+        }
+        return escapeHtml(part);
+    }).join('');
+}
+
+function createNoteItem(note, searchQuery = '') {
     const div = document.createElement('div');
     div.className = 'note-item' + (state.currentNote?.id === note.id ? ' active' : '');
     div.dataset.id = note.id;
-
-    // 获取内容预览（去除Markdown标记）
-    const preview = note.content
-        .replace(/[#*_`~\[\]]/g, '')
-        .substring(0, 50);
 
     // 格式化日期
     const date = new Date(note.updated_at);
     const dateStr = formatDate(date);
 
+    // 如果有搜索上下文，显示高亮的搜索结果
+    let previewHtml;
+    if (searchQuery && note.matchContext) {
+        previewHtml = highlightText(note.matchContext, searchQuery);
+    } else {
+        // 默认预览（去除Markdown标记）
+        const preview = note.content
+            .replace(/[#*_`~\[\]]/g, '')
+            .substring(0, 50);
+        previewHtml = searchQuery ? highlightText(preview, searchQuery) : escapeHtml(preview);
+    }
+
+    // 标题也支持高亮
+    const titleHtml = searchQuery ? highlightText(note.title, searchQuery) : escapeHtml(note.title);
+
     div.innerHTML = `
-        <div class="note-item-title">${escapeHtml(note.title)}</div>
-        <div class="note-item-preview">${escapeHtml(preview)}</div>
+        <div class="note-item-title">${titleHtml}</div>
+        <div class="note-item-preview">${previewHtml}</div>
         <div class="note-item-date">${dateStr}</div>
         <div class="note-item-badges">
             ${note.is_hidden ? '<span class="badge hidden">隐藏</span>' : ''}
@@ -385,7 +416,9 @@ function togglePreview() {
 // ============================================
 
 async function searchNotes(query) {
-    if (!query.trim()) {
+    state.searchQuery = query.trim();
+
+    if (!state.searchQuery) {
         await loadNotes();
         return;
     }
@@ -422,6 +455,7 @@ async function loadConfig() {
 
 function applyConfig() {
     const config = state.config;
+    console.log('Applying config, theme:', config.theme);
 
     // 应用字体大小
     document.documentElement.style.setProperty('--font-size-base', config.font_size + 'px');
@@ -432,9 +466,12 @@ function applyConfig() {
     // 应用主题
     if (config.theme && config.theme !== 'parchment') {
         document.body.dataset.theme = config.theme;
+        console.log('Theme applied:', config.theme);
     } else {
         delete document.body.dataset.theme;
+        console.log('Theme reset to parchment (default)');
     }
+
 
     // 更新设置面板UI
     const fontSizeInput = document.getElementById('setting-font-size');
@@ -471,6 +508,11 @@ function applyConfig() {
         autoStartCheckbox.checked = config.auto_start;
     }
 
+    const saveReminderCheckbox = document.getElementById('setting-save-reminder');
+    if (saveReminderCheckbox) {
+        saveReminderCheckbox.checked = config.show_save_reminder !== false;
+    }
+
     const dataPathInput = document.getElementById('setting-data-path');
     if (dataPathInput) {
         dataPathInput.value = config.data_path || './data';
@@ -481,11 +523,32 @@ function applyConfig() {
     const hotkeyHide = document.getElementById('hotkey-hide');
     const hotkeyPopout = document.getElementById('hotkey-popout');
     const hotkeyCloseStickies = document.getElementById('hotkey-close-stickies');
+    const hotkeyDelete = document.getElementById('hotkey-delete');
     if (hotkeyShow) hotkeyShow.value = config.hotkey_show || 'alt+shift+s';
-    if (hotkeyHide) hotkeyHide.value = config.hotkey_hide_all || 'alt+shift+h';
+    if (hotkeyHide) hotkeyHide.value = config.hotkey_hide_all || 'ctrl+h';
     if (hotkeyPopout) hotkeyPopout.value = config.hotkey_popout || 'alt+shift+p';
     if (hotkeyCloseStickies) hotkeyCloseStickies.value = config.hotkey_close_stickies || 'alt+shift+c';
+    if (hotkeyDelete) hotkeyDelete.value = config.hotkey_delete || 'delete';
+
+    // 更新完整路径显示
+    updateResolvedDataPath();
 }
+
+
+// 更新显示完整的数据路径
+async function updateResolvedDataPath() {
+    const resolvedPathEl = document.getElementById('resolved-data-path');
+    if (resolvedPathEl && window.electronAPI && window.electronAPI.getResolvedDataPath) {
+        try {
+            const resolvedPath = await window.electronAPI.getResolvedDataPath();
+            resolvedPathEl.textContent = resolvedPath;
+            resolvedPathEl.title = resolvedPath;
+        } catch (e) {
+            resolvedPathEl.textContent = '无法获取路径';
+        }
+    }
+}
+
 
 async function saveConfig(updates) {
     try {
@@ -500,33 +563,67 @@ async function saveConfig(updates) {
 
 function openSettings() {
     elements.settingsModal.classList.add('active');
+    state.settingsChanged = false;  // 重置更改状态
 }
 
-function closeSettings() {
+async function closeSettings() {
+    // 如果有未保存的更改，且开启了提醒
+    if (state.settingsChanged && state.config.show_save_reminder !== false) {
+        const shouldSave = confirm('设置已更改但未保存。\n\n点击「确定」保存设置，点击「取消」放弃更改。');
+        if (shouldSave) {
+            // 触发保存按钮点击
+            document.getElementById('btn-save-settings').click();
+            return;  // 保存操作会关闭设置面板
+        }
+    }
+
     elements.settingsModal.classList.remove('active');
-    state.recordingHotkey = null;
+
+    // 如果正在录制快捷键，需要恢复
+    if (state.recordingHotkey) {
+        state.recordingHotkey = null;
+        // 重新注册快捷键
+        if (window.electronAPI && window.electronAPI.stopHotkeyRecording) {
+            await window.electronAPI.stopHotkeyRecording();
+        }
+    }
+
     // 移除所有录制状态
     document.querySelectorAll('.hotkey-input').forEach(input => {
         input.classList.remove('recording');
     });
+
+    // 恢复原始配置（撤销实时预览的更改）
+    applyConfig();
+    state.settingsChanged = false;
 }
+
+
+
 
 // ============================================
 // 快捷键录制
 // ============================================
 
-function startHotkeyRecording(inputElement, configKey) {
+async function startHotkeyRecording(inputElement, configKey) {
     // 清除其他录制状态
     document.querySelectorAll('.hotkey-input').forEach(input => {
         input.classList.remove('recording');
     });
 
+    // 通知主进程临时注销全局快捷键，避免录制时被拦截
+    if (window.electronAPI && window.electronAPI.startHotkeyRecording) {
+        await window.electronAPI.startHotkeyRecording();
+    }
+
+    // 保存原始值，用于按下相同快捷键时恢复显示
+    const originalValue = inputElement.value;
     inputElement.classList.add('recording');
     inputElement.value = '请按下快捷键...';
-    state.recordingHotkey = { element: inputElement, configKey };
+    state.recordingHotkey = { element: inputElement, configKey, originalValue };
 }
 
-function handleHotkeyRecording(e) {
+async function handleHotkeyRecording(e) {
     if (!state.recordingHotkey) return;
 
     e.preventDefault();
@@ -550,13 +647,22 @@ function handleHotkeyRecording(e) {
 
     const hotkey = parts.join('+');
 
-    // 更新输入框
+    // 更新输入框 - 即使和原来相同也要显示
     state.recordingHotkey.element.value = hotkey;
     state.recordingHotkey.element.classList.remove('recording');
 
-    // 保存到临时状态（点击保存按钮时才真正保存）
+    // 标记设置已更改（确保快捷键更改后未保存会提醒）
+    state.settingsChanged = true;
+
+    // 清除录制状态
     state.recordingHotkey = null;
+
+    // 通知主进程重新注册快捷键
+    if (window.electronAPI && window.electronAPI.stopHotkeyRecording) {
+        await window.electronAPI.stopHotkeyRecording();
+    }
 }
+
 
 // ============================================
 // 工具函数
@@ -631,43 +737,43 @@ function handleKeyboard(e) {
     }
 
     // Ctrl+N: 新建便利贴
-    if (e.ctrlKey && e.key === 'n') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         createNote();
     }
 
     // Ctrl+S: 保存
-    if (e.ctrlKey && e.key === 's') {
+    if (e.ctrlKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
         saveCurrentNote();
     }
 
     // Ctrl+P: 切换预览
-    if (e.ctrlKey && e.key === 'p') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         togglePreview();
     }
 
     // Ctrl+H: 隐藏当前便利贴
-    if (e.ctrlKey && e.key === 'h') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         toggleHiddenNote();
     }
 
     // Ctrl+B: 加粗
-    if (e.ctrlKey && e.key === 'b') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'b') {
         e.preventDefault();
         wrapSelection('**', '**');
     }
 
     // Ctrl+I: 斜体
-    if (e.ctrlKey && e.key === 'i') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'i') {
         e.preventDefault();
         wrapSelection('*', '*');
     }
 
     // Ctrl+K: 链接
-    if (e.ctrlKey && e.key === 'k') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         const url = prompt('输入链接URL:');
         if (url) {
@@ -719,19 +825,24 @@ function bindEvents() {
     // 弹出为浮动窗口
     document.getElementById('btn-popout').addEventListener('click', popoutCurrentNote);
 
-    // 显示/隐藏 隐藏便利贴
+    // 切换显示/隐藏 - 显示隐藏的便利贴
     document.getElementById('btn-show-hidden').addEventListener('click', async () => {
         state.showHidden = !state.showHidden;
         await loadNotes();
-        showStatus(state.showHidden ? '显示隐藏便利贴' : '隐藏私密便利贴');
+        showStatus(state.showHidden ? '👁 查看模式：显示所有便利贴' : '👁‍🗨 查看模式：隐藏私密便利贴');
 
         // 更新按钮样式
         const btn = document.getElementById('btn-show-hidden');
         btn.style.color = state.showHidden ? 'var(--accent-color)' : '';
+        btn.title = state.showHidden ? '当前：显示所有便利贴（点击切换）' : '当前：隐藏私密便利贴（点击切换）';
     });
 
-    // 解隐藏所有
-    document.getElementById('btn-unhide-all').addEventListener('click', unhideAllNotes);
+    // 解除所有隐藏（添加确认）
+    document.getElementById('btn-unhide-all').addEventListener('click', async () => {
+        if (confirm('确定要取消所有便利贴的隐藏状态吗？\n\n此操作将使所有隐藏的便利贴变为可见。')) {
+            await unhideAllNotes();
+        }
+    });
 
     // 设置
     document.getElementById('btn-settings').addEventListener('click', openSettings);
@@ -769,9 +880,24 @@ function bindEvents() {
         }
     });
 
-    // 设置面板事件
+    // 设置面板事件 - 实时预览
     document.getElementById('setting-font-size').addEventListener('input', (e) => {
-        document.getElementById('font-size-value').textContent = e.target.value + 'px';
+        const size = e.target.value;
+        document.getElementById('font-size-value').textContent = size + 'px';
+        // 实时预览字体大小
+        document.documentElement.style.setProperty('--font-size-base', size + 'px');
+        state.settingsChanged = true;
+    });
+
+    // 主题实时预览
+    document.getElementById('setting-theme').addEventListener('change', (e) => {
+        const theme = e.target.value;
+        if (theme && theme !== 'parchment') {
+            document.body.dataset.theme = theme;
+        } else {
+            delete document.body.dataset.theme;
+        }
+        state.settingsChanged = true;
     });
 
     // 数据文件夹浏览
@@ -782,12 +908,13 @@ function bindEvents() {
                 const path = await window.electronAPI.selectFolder();
                 if (path) {
                     document.getElementById('setting-data-path').value = path;
+                    state.settingsChanged = true;
                 }
             }
         });
     }
 
-    // 字体预设下拉框
+    // 字体预设下拉框 - 实时预览
     const fontPresetSelect = document.getElementById('setting-font-preset');
     const fontFamilyInput = document.getElementById('setting-font-family');
     if (fontPresetSelect && fontFamilyInput) {
@@ -797,9 +924,22 @@ function bindEvents() {
                 fontFamilyInput.focus();
             } else {
                 fontFamilyInput.style.display = 'none';
+                // 实时预览字体
+                document.documentElement.style.setProperty('--font-family', e.target.value);
             }
+            state.settingsChanged = true;
         });
+
+        // 自定义字体输入时也实时预览
+        fontFamilyInput.addEventListener('input', (e) => {
+            if (e.target.value.trim()) {
+                document.documentElement.style.setProperty('--font-family', e.target.value);
+            }
+            state.settingsChanged = true;
+        });
+
     }
+
 
     // 快捷键录制
     document.getElementById('hotkey-show').addEventListener('click', function () {
@@ -813,6 +953,9 @@ function bindEvents() {
     });
     document.getElementById('hotkey-close-stickies').addEventListener('click', function () {
         startHotkeyRecording(this, 'hotkey_close_stickies');
+    });
+    document.getElementById('hotkey-delete').addEventListener('click', function () {
+        startHotkeyRecording(this, 'hotkey_delete');
     });
 
     // 保存设置按钮
@@ -829,6 +972,22 @@ function bindEvents() {
             fontFamily = fontCustom?.value || '';
         }
 
+        // 验证快捷键是否有效（只包含 ASCII 字符）
+        function isValidHotkey(val) {
+            if (!val || typeof val !== 'string') return false;
+            // 不能是中文提示或录制状态
+            if (val.includes('请按下') || val.includes('...')) return false;
+            // 只能包含 ASCII 字符
+            return /^[\x00-\x7F]+$/.test(val);
+        }
+
+        // 获取快捷键值，无效时保留原值
+        const hotkeyShow = document.getElementById('hotkey-show').value;
+        const hotkeyHide = document.getElementById('hotkey-hide').value;
+        const hotkeyPopout = document.getElementById('hotkey-popout').value;
+        const hotkeyCloseStickies = document.getElementById('hotkey-close-stickies').value;
+        const hotkeyDelete = document.getElementById('hotkey-delete').value;
+
         const oldDataPath = state.config.data_path;
         const updates = {
             font_size: parseInt(document.getElementById('setting-font-size').value),
@@ -836,12 +995,16 @@ function bindEvents() {
             theme: document.getElementById('setting-theme').value,
             data_path: document.getElementById('setting-data-path').value,
             auto_start: document.getElementById('setting-auto-start').checked,
-            hotkey_show: document.getElementById('hotkey-show').value,
-            hotkey_hide_all: document.getElementById('hotkey-hide').value,
-            hotkey_popout: document.getElementById('hotkey-popout').value,
-            hotkey_close_stickies: document.getElementById('hotkey-close-stickies').value,
+            show_save_reminder: document.getElementById('setting-save-reminder').checked,
+            hotkey_show: isValidHotkey(hotkeyShow) ? hotkeyShow : state.config.hotkey_show,
+            hotkey_hide_all: isValidHotkey(hotkeyHide) ? hotkeyHide : state.config.hotkey_hide_all,
+            hotkey_popout: isValidHotkey(hotkeyPopout) ? hotkeyPopout : state.config.hotkey_popout,
+            hotkey_close_stickies: isValidHotkey(hotkeyCloseStickies) ? hotkeyCloseStickies : state.config.hotkey_close_stickies,
+            hotkey_delete: isValidHotkey(hotkeyDelete) ? hotkeyDelete : state.config.hotkey_delete,
         };
+
         await saveConfig(updates);
+        state.settingsChanged = false;  // 重置更改状态
 
         // 如果数据路径变化，重新加载便利贴
         if (oldDataPath !== updates.data_path) {
@@ -850,8 +1013,10 @@ function bindEvents() {
             showStatus('数据目录已更改，便利贴已重新加载');
         }
 
-        closeSettings();
+        // 关闭设置面板
+        elements.settingsModal.classList.remove('active');
     });
+
 
     // 全局快捷键
     document.addEventListener('keydown', handleKeyboard);
@@ -901,9 +1066,49 @@ async function init() {
         });
     }
 
+    // 监听全局快捷键触发的隐藏当前便利贴事件
+    if (window.electronAPI && window.electronAPI.onTriggerToggleHidden) {
+        window.electronAPI.onTriggerToggleHidden(() => {
+            console.log('Trigger toggle hidden received from global hotkey');
+            toggleHiddenNote();
+        });
+    }
+
+    // 监听全局快捷键触发的删除当前便利贴事件
+    if (window.electronAPI && window.electronAPI.onTriggerDelete) {
+        window.electronAPI.onTriggerDelete(() => {
+            console.log('Trigger delete received from global hotkey');
+            deleteCurrentNote();
+        });
+    }
+
+    // 监听配置变更（实现主题热更新）
+    if (window.electronAPI && window.electronAPI.onConfigChanged) {
+        window.electronAPI.onConfigChanged((newConfig) => {
+            console.log('Config changed, applying new settings:', newConfig);
+            state.config = newConfig;
+            applyConfig();
+        });
+    }
+
+    // 监听笔记变更（浮动窗口修改后同步刷新）
+    if (window.electronAPI && window.electronAPI.onNoteChanged) {
+        window.electronAPI.onNoteChanged(async (noteId) => {
+            console.log('Note changed in sticky window:', noteId);
+            // 刷新笔记列表
+            await loadNotes();
+            // 如果当前正在查看被修改的笔记，重新加载
+            if (state.currentNote && state.currentNote.id === noteId) {
+                await selectNote(noteId);
+            }
+        });
+    }
+
+
     showStatus('就绪');
     console.log('StickyNotes ready!');
 }
+
 
 // 初始化窗口控制按钮
 function initWindowControls() {

@@ -10,14 +10,17 @@ const DEFAULT_CONFIG = {
     hotkey_hide_all: 'Alt+Shift+H',
     hotkey_popout: 'Alt+Shift+P',
     hotkey_close_stickies: 'Alt+Shift+C',
+    hotkey_delete: 'Delete',
     window_width: 900,
     window_height: 650,
     start_minimized: false,
     auto_start: false,
     minimize_to_tray: true,
     editor_line_height: 1.6,
-    auto_save_interval: 30
+    auto_save_interval: 30,
+    show_save_reminder: true  // 是否显示设置保存提醒
 };
+
 
 class ConfigManager {
     constructor() {

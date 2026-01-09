@@ -38,6 +38,21 @@
             --blockquote-bg: rgba(80, 250, 123, 0.1);
         }
 
+        [data-theme="light"] {
+            --bg-color: #ffffff;
+            --text-color: #212529;
+            --accent-color: #0d6efd;
+            --link-color: #0d6efd;
+            --border-color: rgba(0, 0, 0, 0.1);
+            --h1-color: #0d6efd;
+            --h2-bg: rgba(13, 110, 253, 0.1);
+            --h2-color: #0d6efd;
+            --h3-color: #6610f2;
+            --blockquote-border: #6c757d;
+            --blockquote-bg: rgba(108, 117, 125, 0.05);
+        }
+
+
         * {
             margin: 0;
             padding: 0;
@@ -408,10 +423,16 @@
                     title: noteData.title,
                     content: noteData.content
                 });
+
+                // 通知主窗口刷新笔记列表
+                if (window.electronAPI && window.electronAPI.notifyNoteChanged) {
+                    window.electronAPI.notifyNoteChanged(noteId);
+                }
             } catch (error) {
                 console.error('Failed to save note:', error);
             }
         }
+
 
         // 切换置顶
         function togglePin() {
@@ -454,14 +475,6 @@
             }
         });
 
-        // 点击标题栏退出编辑模式
-        document.getElementById('title-bar').addEventListener('click', (e) => {
-            // 只有点击标题栏本身（非按钮）时触发
-            if (isEditing && e.target.id === 'title-bar' || e.target.id === 'note-title') {
-                toggleEdit();
-            }
-        });
-
         // 快捷键
         document.addEventListener('keydown', (e) => {
             // Ctrl+S 保存
@@ -477,40 +490,135 @@
             }
         });
 
-        // 编辑器失去焦点时自动保存并退出编辑
-        contentEl.addEventListener('focusout', (e) => {
-            // 延迟检查，因为焦点可能转移到编辑器内其他元素
-            setTimeout(() => {
-                if (isEditing) {
-                    const editor = document.getElementById('editor');
-                    // 如果焦点不在编辑器内，则退出编辑
-                    if (editor && !editor.contains(document.activeElement) && document.activeElement !== editor) {
-                        toggleEdit();
-                    }
-                }
-            }, 100);
+        // 窗口失焦时自动保存并退出编辑模式（点击窗口外部时触发）
+        window.addEventListener('blur', () => {
+            if (isEditing) {
+                toggleEdit();
+            }
         });
+
+        // 编辑器失去焦点时自动保存并退出编辑
+        // 使用 focusout 事件监听编辑器失焦，结合 requestAnimationFrame 延迟检查
+        contentEl.addEventListener('focusout', (e) => {
+            if (!isEditing) return;
+
+            // 使用 requestAnimationFrame 延迟检查，确保焦点已经转移
+            requestAnimationFrame(() => {
+                if (!isEditing) return;
+
+                const editor = document.getElementById('editor');
+                // 如果焦点仍在编辑器内，不处理
+                if (editor && (document.activeElement === editor || editor.contains(document.activeElement))) {
+                    return;
+                }
+
+                // 如果焦点转移到控制按钮区域，让按钮自己处理，不退出编辑
+                const controls = document.querySelector('.controls');
+                if (controls && controls.contains(document.activeElement)) {
+                    return;
+                }
+
+                // 焦点离开编辑器，自动保存并退出编辑
+                toggleEdit();
+            });
+        });
+
+        // 右下角调整大小功能
+        const resizeHandle = document.getElementById('resize-handle');
+        if (resizeHandle) {
+            let isResizing = false;
+            let startX, startY, startWidth, startHeight;
+
+            resizeHandle.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                isResizing = true;
+                startX = e.screenX;
+                startY = e.screenY;
+                startWidth = window.outerWidth;
+                startHeight = window.outerHeight;
+                document.body.style.cursor = 'nwse-resize';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const deltaX = e.screenX - startX;
+                const deltaY = e.screenY - startY;
+                const newWidth = Math.max(200, startWidth + deltaX);
+                const newHeight = Math.max(150, startHeight + deltaY);
+
+                // 使用 IPC 调整窗口大小
+                if (window.electronAPI && window.electronAPI.resizeWindow) {
+                    window.electronAPI.resizeWindow(newWidth, newHeight);
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.style.cursor = '';
+                }
+            });
+        }
 
         // 初始化
         loadNote();
 
-        // 应用主题
-        async function applyTheme() {
+
+        // 应用主题和字体配置
+        function applyThemeConfig(config) {
+            if (!config) return;
+
+            // 应用主题
+            if (config.theme && config.theme !== 'parchment') {
+                document.body.dataset.theme = config.theme;
+            } else {
+                delete document.body.dataset.theme;
+            }
+
+            // 应用字体
+            if (config.font_family) {
+                document.documentElement.style.setProperty('--font-family', config.font_family);
+            }
+            if (config.font_size) {
+                document.documentElement.style.setProperty('--font-size', config.font_size + 'px');
+            }
+        }
+
+        // 初始加载主题
+        async function initTheme() {
             try {
                 const config = await getConfig();
-                if (config && config.theme && config.theme !== 'parchment') {
-                    document.body.dataset.theme = config.theme;
-                }
-                if (config && config.font_family) {
-                    document.documentElement.style.setProperty('--font-family', config.font_family);
-                }
-                if (config && config.font_size) {
-                    document.documentElement.style.setProperty('--font-size', config.font_size + 'px');
-                }
-            } catch (e) { }
+                console.log('Sticky window: Initial theme config:', config?.theme);
+                applyThemeConfig(config);
+            } catch (e) {
+                console.error('Sticky window: Failed to load initial theme:', e);
+            }
         }
-        applyTheme();
+        initTheme();
+
+        // 监听配置变更（实现主题热更新）
+        function setupConfigListener() {
+            if (window.electronAPI && window.electronAPI.onConfigChanged) {
+                console.log('Sticky window: Setting up config change listener');
+                window.electronAPI.onConfigChanged((newConfig) => {
+                    console.log('Sticky window: Config changed, new theme:', newConfig?.theme);
+                    applyThemeConfig(newConfig);
+                });
+            } else {
+                console.warn('Sticky window: electronAPI.onConfigChanged not available');
+            }
+        }
+
+        // 确保 electronAPI 已加载后再设置监听器
+        if (document.readyState === 'complete') {
+            setupConfigListener();
+        } else {
+            window.addEventListener('load', setupConfigListener);
+        }
+
     </script>
+
 </body>
 
 </html>

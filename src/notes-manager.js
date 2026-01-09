@@ -64,9 +64,12 @@ class NotesManager {
     }
 
     getSafeFilename(note) {
-        const safeName = note.title.replace(/[<>:"\/\\|?*]/g, '_').substring(0, 50);
+        // 确保 title 是字符串
+        const title = (note.title && typeof note.title === 'string') ? note.title : 'untitled';
+        const safeName = title.replace(/[<>:"\/\\|?*]/g, '_').substring(0, 50);
         return note.id.substring(0, 8) + '_' + safeName + '.md';
     }
+
 
     getAllNotes(includeHidden) {
         if (!fs.existsSync(this.notesDir)) return [];
@@ -174,8 +177,42 @@ class NotesManager {
     searchNotes(query) {
         if (!query) return this.getAllNotes();
         const q = query.toLowerCase();
-        return this.getAllNotes().filter(n => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q));
+        const results = [];
+
+        for (const note of this.getAllNotes()) {
+            const titleMatch = note.title.toLowerCase().includes(q);
+            const contentMatch = note.content.toLowerCase().includes(q);
+
+            if (titleMatch || contentMatch) {
+                // 生成匹配上下文片段
+                let matchContext = null;
+                let matchIndex = -1;
+
+                if (contentMatch) {
+                    matchIndex = note.content.toLowerCase().indexOf(q);
+                    const contextStart = Math.max(0, matchIndex - 20);
+                    const contextEnd = Math.min(note.content.length, matchIndex + q.length + 30);
+
+                    let prefix = contextStart > 0 ? '...' : '';
+                    let suffix = contextEnd < note.content.length ? '...' : '';
+
+                    matchContext = prefix + note.content.substring(contextStart, contextEnd) + suffix;
+                }
+
+                results.push({
+                    ...note,
+                    matchContext,
+                    matchIndex,
+                    matchLength: q.length,
+                    titleMatch,
+                    contentMatch
+                });
+            }
+        }
+
+        return results;
     }
+
 }
 
 module.exports = NotesManager;

@@ -22,26 +22,6 @@
                             <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                         </svg>
                     </button>
-                    <!-- 窗口控制按钮 -->
-                    <div class="window-controls" id="window-controls">
-                        <button class="win-btn" id="btn-minimize" title="最小化">
-                            <svg viewBox="0 0 24 24" width="12" height="12">
-                                <path fill="currentColor" d="M19 13H5v-2h14v2z" />
-                            </svg>
-                        </button>
-                        <button class="win-btn" id="btn-maximize" title="最大化">
-                            <svg viewBox="0 0 24 24" width="12" height="12">
-                                <path fill="currentColor"
-                                    d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
-                            </svg>
-                        </button>
-                        <button class="win-btn btn-close" id="btn-close-window" title="关闭">
-                            <svg viewBox="0 0 24 24" width="12" height="12">
-                                <path fill="currentColor"
-                                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                            </svg>
-                        </button>
-                    </div>
                 </div>
             </div>
 
@@ -61,18 +41,19 @@
 
             <!-- 底部工具栏 -->
             <div class="sidebar-footer">
-                <button class="btn-icon" id="btn-show-hidden" title="切换显示隐藏的便利贴">
+                <button class="btn-icon" id="btn-show-hidden" title="当前：隐藏私密便利贴（点击切换查看模式）">
                     <svg viewBox="0 0 24 24" width="18" height="18" id="icon-show-hidden">
                         <path fill="currentColor"
                             d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
                     </svg>
                 </button>
-                <button class="btn-icon" id="btn-unhide-all" title="显示所有隐藏便利贴">
+                <button class="btn-icon" id="btn-unhide-all" title="取消所有便利贴的隐藏状态">
                     <svg viewBox="0 0 24 24" width="18" height="18">
                         <path fill="currentColor"
                             d="M12 6c3.79 0 7.17 2.13 8.82 5.5-.59 1.22-1.42 2.27-2.41 3.12l1.41 1.41c1.39-1.23 2.49-2.77 3.18-4.53C21.27 7.11 17 4 12 4c-1.27 0-2.49.2-3.64.57l1.65 1.65C10.66 6.09 11.32 6 12 6zm-1.07 1.14L13 9.21c.57.25 1.03.71 1.28 1.28l2.07 2.07c.08-.34.14-.7.14-1.07C16.5 9.01 14.48 7 12 7c-.37 0-.72.05-1.07.14zM2.01 3.87l2.68 2.68C3.06 7.83 1.77 9.53 1 11.5 2.73 15.89 7 19 12 19c1.52 0 2.98-.29 4.32-.82l3.42 3.42 1.41-1.41L3.42 2.45 2.01 3.87zm7.5 7.5l2.61 2.61c-.04.01-.08.02-.12.02-1.38 0-2.5-1.12-2.5-2.5 0-.05.01-.08.01-.13zm-3.4-3.4l1.75 1.75c-.23.55-.36 1.15-.36 1.78 0 2.48 2.02 4.5 4.5 4.5.63 0 1.23-.13 1.77-.36l.98.98c-.88.24-1.8.38-2.75.38-3.79 0-7.17-2.13-8.82-5.5.7-1.43 1.72-2.61 2.93-3.53z" />
                     </svg>
                 </button>
+
                 <button class="btn-icon" id="btn-settings" title="设置">
                     <svg viewBox="0 0 24 24" width="18" height="18">
                         <path fill="currentColor"
@@ -110,6 +91,26 @@
                         <svg viewBox="0 0 24 24" width="18" height="18">
                             <path fill="currentColor"
                                 d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                        </svg>
+                    </button>
+                </div>
+                <!-- 窗口控制按钮 - 右上角 -->
+                <div class="window-controls window-controls-right" id="window-controls">
+                    <button class="win-btn" id="btn-minimize" title="最小化">
+                        <svg viewBox="0 0 24 24" width="12" height="12">
+                            <path fill="currentColor" d="M19 13H5v-2h14v2z" />
+                        </svg>
+                    </button>
+                    <button class="win-btn" id="btn-maximize" title="最大化">
+                        <svg viewBox="0 0 24 24" width="12" height="12">
+                            <path fill="currentColor"
+                                d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
+                        </svg>
+                    </button>
+                    <button class="win-btn btn-close" id="btn-close-window" title="关闭">
+                        <svg viewBox="0 0 24 24" width="12" height="12">
+                            <path fill="currentColor"
+                                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                         </svg>
                     </button>
                 </div>
@@ -174,7 +175,17 @@
                     </select>
                     <input type="text" id="setting-font-family" class="setting-input" placeholder="输入自定义字体名称"
                         style="display: none;">
-                    <small style="opacity: 0.6; font-size: 0.8em;">提示: 可查看 C:\Windows\Fonts 文件夹获取字体名称</small>
+                    <details class="font-tip-details">
+                        <summary style="opacity: 0.7; font-size: 0.8em; cursor: pointer;">💡 字体加载提示</summary>
+                        <div
+                            style="opacity: 0.6; font-size: 0.75em; padding: 8px; background: var(--input-bg); border-radius: 4px; margin-top: 4px;">
+                            <p style="margin: 0 0 4px 0;">霞鹜文楷通过网络加载，首次可能较慢。</p>
+                            <p style="margin: 0 0 4px 0;">推荐下载安装到本地：<a
+                                    href="https://github.com/lxgw/LxgwWenKai/releases" target="_blank"
+                                    style="color: var(--link-color);">下载地址</a></p>
+                            <p style="margin: 0;">查看本地字体: C:\Windows\Fonts</p>
+                        </div>
+                    </details>
                 </div>
 
                 <!-- 主题 -->
@@ -201,8 +212,13 @@
                             </svg>
                         </button>
                     </div>
-                    <small style="opacity: 0.6; font-size: 0.8em; display: block; margin-top: 4px;">
-                        💡 提示：修改后需要重启应用生效。支持相对路径(如 ./data)或绝对路径(如 D:\MyNotes)
+                    <div style="margin-top: 6px;">
+                        <small style="opacity: 0.7; font-size: 0.75em;">📂 实际路径: </small>
+                        <small id="resolved-data-path"
+                            style="opacity: 0.9; font-size: 0.75em; color: var(--accent-color); word-break: break-all;">加载中...</small>
+                    </div>
+                    <small style="opacity: 0.5; font-size: 0.7em; display: block; margin-top: 4px;">
+                        💡 如果更新不成功则重启软件
                     </small>
                 </div>
 
@@ -214,6 +230,18 @@
                     </label>
                 </div>
 
+                <!-- 保存提醒 -->
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <input type="checkbox" id="setting-save-reminder" checked>
+                        关闭设置时提醒保存
+                    </label>
+                    <small style="opacity: 0.5; font-size: 0.7em; display: block; margin-top: 2px;">
+                        实时预览更改后，若未保存将提示
+                    </small>
+                </div>
+
+
                 <!-- 快捷键配置 -->
                 <div class="setting-group">
                     <label class="setting-label">快捷键配置 (点击输入框后按下快捷键)</label>
@@ -224,8 +252,8 @@
                                 title="点击后按下新的快捷键">
                         </div>
                         <div class="hotkey-item">
-                            <span>隐藏所有便利贴</span>
-                            <input type="text" class="hotkey-input" id="hotkey-hide" value="alt+shift+h" readonly
+                            <span>隐藏当前便利贴</span>
+                            <input type="text" class="hotkey-input" id="hotkey-hide" value="ctrl+h" readonly
                                 title="点击后按下新的快捷键">
                         </div>
                         <div class="hotkey-item">
@@ -237,6 +265,11 @@
                             <span>关闭所有浮动便利贴</span>
                             <input type="text" class="hotkey-input" id="hotkey-close-stickies" value="alt+shift+c"
                                 readonly title="点击后按下新的快捷键">
+                        </div>
+                        <div class="hotkey-item">
+                            <span>删除当前便利贴</span>
+                            <input type="text" class="hotkey-input" id="hotkey-delete" value="delete" readonly
+                                title="点击后按下新的快捷键">
                         </div>
                     </div>
                 </div>

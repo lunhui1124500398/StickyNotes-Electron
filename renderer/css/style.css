@@ -101,6 +101,13 @@
     -webkit-app-region: no-drag;
 }
 
+/* 窗口控制按钮 - 右上角位置 (Windows 风格) */
+.window-controls-right {
+    margin-left: auto;
+    padding-left: 16px;
+    border-left: none;
+}
+
 .win-btn {
     width: 14px;
     height: 14px;
@@ -951,4 +958,24 @@ body {
     .sidebar.open {
         left: 0;
     }
+}
+
+/* ============================================
+   13. 搜索高亮
+   ============================================ */
+
+.search-highlight {
+    background: linear-gradient(120deg, rgba(250, 189, 47, 0.4) 0%, rgba(250, 189, 47, 0.6) 100%);
+    color: inherit;
+    padding: 0 2px;
+    border-radius: 2px;
+    font-weight: 500;
+}
+
+[data-theme="dark"] .search-highlight {
+    background: linear-gradient(120deg, rgba(255, 184, 108, 0.3) 0%, rgba(255, 184, 108, 0.5) 100%);
+}
+
+[data-theme="light"] .search-highlight {
+    background: linear-gradient(120deg, rgba(13, 110, 253, 0.2) 0%, rgba(13, 110, 253, 0.35) 100%);
 }

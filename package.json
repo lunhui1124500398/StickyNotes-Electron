@@ -1,6 +1,6 @@
 {
   "name": "stickynotes-electron",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "StickyNotes - 美观的便利贴应用，支持 Markdown",
   "main": "main.js",
   "scripts": {
@@ -16,7 +16,7 @@
     "markdown",
     "electron"
   ],
-  "author": "",
+  "author": "StickyNotes Team",
   "license": "MIT",
   "devDependencies": {
     "electron": "^28.3.3",
@@ -24,8 +24,9 @@
   },
   "build": {
     "appId": "com.stickynotes.app",
-    "productName": "StickyNotes",
-    "copyright": "Copyright © 2026",
+    "productName": "便利贴",
+    "copyright": "Copyright © 2026 StickyNotes",
+    "asar": true,
     "directories": {
       "output": "dist"
     },
