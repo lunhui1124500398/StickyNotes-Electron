@@ -19,6 +19,7 @@ const state = {
     recordingHotkey: null,  // 正在录制的快捷键字段
     searchQuery: '',  // 当前搜索关键词
     settingsChanged: false,  // 设置是否有未保存的更改
+    previousFocus: null, // 打开设置前聚焦的元素
 };
 
 
@@ -555,13 +556,77 @@ async function saveConfig(updates) {
         state.config = await window.electronAPI.saveConfig(updates);
         applyConfig();
         showStatus('设置已保存');
+        return true;
     } catch (error) {
         console.error('Failed to save config:', error);
         showStatus('保存设置失败', 'error');
+        return false;
     }
 }
 
+// 执行保存设置的核心逻辑（从按钮事件处理器提取，可复用）
+async function performSaveSettings() {
+    // 获取字体设置
+    let fontFamily;
+    const fontPreset = document.getElementById('setting-font-preset');
+    const fontCustom = document.getElementById('setting-font-family');
+    if (fontPreset && fontPreset.value === 'custom') {
+        fontFamily = fontCustom.value;
+    } else if (fontPreset) {
+        fontFamily = fontPreset.value;
+    } else {
+        fontFamily = fontCustom?.value || '';
+    }
+
+    // 验证快捷键是否有效（只包含 ASCII 字符）
+    function isValidHotkey(val) {
+        if (!val || typeof val !== 'string') return false;
+        // 不能是中文提示或录制状态
+        if (val.includes('请按下') || val.includes('...')) return false;
+        // 只能包含 ASCII 字符
+        return /^[\x00-\x7F]+$/.test(val);
+    }
+
+    // 获取快捷键值，无效时保留原值
+    const hotkeyShow = document.getElementById('hotkey-show').value;
+    const hotkeyHide = document.getElementById('hotkey-hide').value;
+    const hotkeyPopout = document.getElementById('hotkey-popout').value;
+    const hotkeyCloseStickies = document.getElementById('hotkey-close-stickies').value;
+    const hotkeyDelete = document.getElementById('hotkey-delete').value;
+
+    const oldDataPath = state.config.data_path;
+    const updates = {
+        font_size: parseInt(document.getElementById('setting-font-size').value),
+        font_family: fontFamily,
+        theme: document.getElementById('setting-theme').value,
+        data_path: document.getElementById('setting-data-path').value,
+        auto_start: document.getElementById('setting-auto-start').checked,
+        show_save_reminder: document.getElementById('setting-save-reminder').checked,
+        hotkey_show: isValidHotkey(hotkeyShow) ? hotkeyShow : state.config.hotkey_show,
+        hotkey_hide_all: isValidHotkey(hotkeyHide) ? hotkeyHide : state.config.hotkey_hide_all,
+        hotkey_popout: isValidHotkey(hotkeyPopout) ? hotkeyPopout : state.config.hotkey_popout,
+        hotkey_close_stickies: isValidHotkey(hotkeyCloseStickies) ? hotkeyCloseStickies : state.config.hotkey_close_stickies,
+        hotkey_delete: isValidHotkey(hotkeyDelete) ? hotkeyDelete : state.config.hotkey_delete,
+    };
+
+    const success = await saveConfig(updates);
+    if (success) {
+        state.settingsChanged = false;  // 重置更改状态
+
+        // 如果数据路径变化，重新加载便利贴
+        if (oldDataPath !== updates.data_path) {
+            state.currentNote = null;
+            await loadNotes();
+            showStatus('数据目录已更改，便利贴已重新加载');
+        }
+    }
+    return success;
+}
+
 function openSettings() {
+    // 记录当前焦点，以便关闭时恢复
+    state.previousFocus = document.activeElement;
+
     elements.settingsModal.classList.add('active');
     state.settingsChanged = false;  // 重置更改状态
 }
@@ -571,12 +636,32 @@ async function closeSettings() {
     if (state.settingsChanged && state.config.show_save_reminder !== false) {
         const shouldSave = confirm('设置已更改但未保存。\n\n点击「确定」保存设置，点击「取消」放弃更改。');
         if (shouldSave) {
-            // 触发保存按钮点击
-            document.getElementById('btn-save-settings').click();
-            return;  // 保存操作会关闭设置面板
+            // 直接调用保存逻辑并等待完成
+            const success = await performSaveSettings();
+            if (!success) {
+                return; // 保存失败，不关闭面板
+            }
+            // 保存成功，关闭面板并恢复焦点
+            elements.settingsModal.classList.remove('active');
+            state.settingsChanged = false;
+
+            // 刷新窗口焦点（解决 confirm 对话框导致的焦点异常）
+            if (window.electronAPI && window.electronAPI.refocusWindow) {
+                window.electronAPI.refocusWindow();
+            }
+
+            // 恢复焦点 - 延迟执行，等待窗口焦点刷新和 CSS 过渡动画完成
+            setTimeout(() => {
+                if (elements.editor) {
+                    elements.editor.focus();
+                }
+            }, 350);
+            return;
         }
+        // 用户选择不保存，继续执行下面的关闭逻辑（会恢复原始配置）
     }
 
+    // 关闭面板
     elements.settingsModal.classList.remove('active');
 
     // 如果正在录制快捷键，需要恢复
@@ -593,9 +678,21 @@ async function closeSettings() {
         input.classList.remove('recording');
     });
 
-    // 恢复原始配置（撤销实时预览的更改）
+    // 恢复原始配置（仅在用户选择"取消"时执行，撤销实时预览的更改）
     applyConfig();
     state.settingsChanged = false;
+
+    // 刷新窗口焦点（解决 confirm 对话框导致的焦点异常）
+    if (window.electronAPI && window.electronAPI.refocusWindow) {
+        window.electronAPI.refocusWindow();
+    }
+
+    // 恢复焦点 - 延迟执行，等待窗口焦点刷新和 CSS 过渡动画完成
+    setTimeout(() => {
+        if (elements.editor) {
+            elements.editor.focus();
+        }
+    }, 350);
 }
 
 
@@ -960,61 +1057,23 @@ function bindEvents() {
 
     // 保存设置按钮
     document.getElementById('btn-save-settings').addEventListener('click', async () => {
-        // 获取字体设置
-        let fontFamily;
-        const fontPreset = document.getElementById('setting-font-preset');
-        const fontCustom = document.getElementById('setting-font-family');
-        if (fontPreset && fontPreset.value === 'custom') {
-            fontFamily = fontCustom.value;
-        } else if (fontPreset) {
-            fontFamily = fontPreset.value;
-        } else {
-            fontFamily = fontCustom?.value || '';
+        const success = await performSaveSettings();
+        if (success) {
+            // 关闭设置面板
+            elements.settingsModal.classList.remove('active');
+
+            // 恢复焦点 - 延迟执行，等待 CSS 过渡动画完成 (250ms)
+            setTimeout(() => {
+                // 确保 previousFocus 不是设置面板内的元素
+                if (state.previousFocus &&
+                    document.body.contains(state.previousFocus) &&
+                    !elements.settingsModal.contains(state.previousFocus)) {
+                    state.previousFocus.focus();
+                } else if (elements.editor) {
+                    elements.editor.focus();
+                }
+            }, 300);  // 略大于 CSS transition 的 0.25s
         }
-
-        // 验证快捷键是否有效（只包含 ASCII 字符）
-        function isValidHotkey(val) {
-            if (!val || typeof val !== 'string') return false;
-            // 不能是中文提示或录制状态
-            if (val.includes('请按下') || val.includes('...')) return false;
-            // 只能包含 ASCII 字符
-            return /^[\x00-\x7F]+$/.test(val);
-        }
-
-        // 获取快捷键值，无效时保留原值
-        const hotkeyShow = document.getElementById('hotkey-show').value;
-        const hotkeyHide = document.getElementById('hotkey-hide').value;
-        const hotkeyPopout = document.getElementById('hotkey-popout').value;
-        const hotkeyCloseStickies = document.getElementById('hotkey-close-stickies').value;
-        const hotkeyDelete = document.getElementById('hotkey-delete').value;
-
-        const oldDataPath = state.config.data_path;
-        const updates = {
-            font_size: parseInt(document.getElementById('setting-font-size').value),
-            font_family: fontFamily,
-            theme: document.getElementById('setting-theme').value,
-            data_path: document.getElementById('setting-data-path').value,
-            auto_start: document.getElementById('setting-auto-start').checked,
-            show_save_reminder: document.getElementById('setting-save-reminder').checked,
-            hotkey_show: isValidHotkey(hotkeyShow) ? hotkeyShow : state.config.hotkey_show,
-            hotkey_hide_all: isValidHotkey(hotkeyHide) ? hotkeyHide : state.config.hotkey_hide_all,
-            hotkey_popout: isValidHotkey(hotkeyPopout) ? hotkeyPopout : state.config.hotkey_popout,
-            hotkey_close_stickies: isValidHotkey(hotkeyCloseStickies) ? hotkeyCloseStickies : state.config.hotkey_close_stickies,
-            hotkey_delete: isValidHotkey(hotkeyDelete) ? hotkeyDelete : state.config.hotkey_delete,
-        };
-
-        await saveConfig(updates);
-        state.settingsChanged = false;  // 重置更改状态
-
-        // 如果数据路径变化，重新加载便利贴
-        if (oldDataPath !== updates.data_path) {
-            state.currentNote = null;
-            await loadNotes();
-            showStatus('数据目录已更改，便利贴已重新加载');
-        }
-
-        // 关闭设置面板
-        elements.settingsModal.classList.remove('active');
     });
 
 

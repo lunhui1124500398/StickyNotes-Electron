@@ -703,12 +703,14 @@ body {
     z-index: 1000;
     opacity: 0;
     visibility: hidden;
+    pointer-events: none;  /* 隐藏时不阻挡鼠标事件 */
     transition: all 0.25s;
 }
 
 .modal-overlay.active {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;  /* 显示时正常接收鼠标事件 */
 }
 
 .modal {

@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closeSticky: (noteId) => ipcRenderer.send('close-sticky', noteId),
     setStickyOnTop: (noteId, onTop) => ipcRenderer.send('set-sticky-on-top', noteId, onTop),
     resizeWindow: (width, height) => ipcRenderer.send('resize-window', width, height),
+    refocusWindow: () => ipcRenderer.send('refocus-window'),
 
 
     // 通知主窗口笔记已更改

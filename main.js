@@ -409,6 +409,16 @@ function setupIpcHandlers() {
             win.setSize(Math.round(width), Math.round(height));
         }
     });
+
+    // 刷新窗口焦点 - 解决 confirm() 对话框后窗口焦点异常的问题
+    ipcMain.on('refocus-window', (event) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (win) {
+            // 通过 blur 和 focus 强制刷新窗口焦点状态
+            win.blur();
+            win.focus();
+        }
+    });
 }
 
 

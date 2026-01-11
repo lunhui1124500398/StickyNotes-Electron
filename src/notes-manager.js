@@ -124,18 +124,53 @@ class NotesManager {
         return note;
     }
 
-    saveNote(note) {
+    saveNote(note, retryCount = 0) {
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY = 200; // ms
+
         this.ensureDirectories();
         note.updated_at = new Date().toISOString();
         const filename = this.getSafeFilename(note);
-        const files = fs.readdirSync(this.notesDir);
-        for (const file of files) {
-            if (file.startsWith(note.id.substring(0, 8)) && file !== filename) {
-                fs.unlinkSync(path.join(this.notesDir, file));
+
+        // 删除旧文件（如果标题改变导致文件名变化）
+        try {
+            const files = fs.readdirSync(this.notesDir);
+            for (const file of files) {
+                if (file.startsWith(note.id.substring(0, 8)) && file !== filename) {
+                    try {
+                        fs.unlinkSync(path.join(this.notesDir, file));
+                    } catch (unlinkErr) {
+                        console.warn('无法删除旧文件:', file, unlinkErr.message);
+                    }
+                }
             }
+        } catch (e) {
+            console.warn('读取目录失败:', e.message);
         }
-        fs.writeFileSync(path.join(this.notesDir, filename), this.createFrontmatter(note) + note.content, 'utf-8');
-        return note;
+
+        // 尝试写入文件，带重试机制
+        const filePath = path.join(this.notesDir, filename);
+        const content = this.createFrontmatter(note) + note.content;
+
+        try {
+            fs.writeFileSync(filePath, content, 'utf-8');
+            return note;
+        } catch (err) {
+            // 如果是权限错误且未达到最大重试次数，则重试
+            if ((err.code === 'EPERM' || err.code === 'EBUSY') && retryCount < MAX_RETRIES) {
+                console.warn(`文件写入失败 (${err.code})，${RETRY_DELAY}ms 后重试 (${retryCount + 1}/${MAX_RETRIES})...`);
+                // 同步等待后重试
+                const start = Date.now();
+                while (Date.now() - start < RETRY_DELAY) {
+                    // 忙等待
+                }
+                return this.saveNote(note, retryCount + 1);
+            }
+
+            // 重试失败或其他错误，抛出异常
+            console.error('保存笔记失败:', err);
+            throw err;
+        }
     }
 
     updateNote(noteId, updates) {
