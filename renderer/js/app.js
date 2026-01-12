@@ -623,9 +623,14 @@ async function performSaveSettings() {
     return success;
 }
 
-function openSettings() {
+async function openSettings() {
     // 记录当前焦点，以便关闭时恢复
     state.previousFocus = document.activeElement;
+
+    // 打开设置面板时注销所有全局快捷键，避免设置过程中误触发
+    if (window.electronAPI && window.electronAPI.startHotkeyRecording) {
+        await window.electronAPI.startHotkeyRecording();
+    }
 
     elements.settingsModal.classList.add('active');
     state.settingsChanged = false;  // 重置更改状态
@@ -644,6 +649,11 @@ async function closeSettings() {
             // 保存成功，关闭面板并恢复焦点
             elements.settingsModal.classList.remove('active');
             state.settingsChanged = false;
+
+            // 关闭设置面板时重新注册全局快捷键
+            if (window.electronAPI && window.electronAPI.stopHotkeyRecording) {
+                await window.electronAPI.stopHotkeyRecording();
+            }
 
             // 刷新窗口焦点（解决 confirm 对话框导致的焦点异常）
             if (window.electronAPI && window.electronAPI.refocusWindow) {
@@ -664,13 +674,14 @@ async function closeSettings() {
     // 关闭面板
     elements.settingsModal.classList.remove('active');
 
-    // 如果正在录制快捷键，需要恢复
+    // 清理录制状态
     if (state.recordingHotkey) {
         state.recordingHotkey = null;
-        // 重新注册快捷键
-        if (window.electronAPI && window.electronAPI.stopHotkeyRecording) {
-            await window.electronAPI.stopHotkeyRecording();
-        }
+    }
+
+    // 关闭设置面板时重新注册全局快捷键
+    if (window.electronAPI && window.electronAPI.stopHotkeyRecording) {
+        await window.electronAPI.stopHotkeyRecording();
     }
 
     // 移除所有录制状态
@@ -702,16 +713,13 @@ async function closeSettings() {
 // 快捷键录制
 // ============================================
 
-async function startHotkeyRecording(inputElement, configKey) {
+function startHotkeyRecording(inputElement, configKey) {
     // 清除其他录制状态
     document.querySelectorAll('.hotkey-input').forEach(input => {
         input.classList.remove('recording');
     });
 
-    // 通知主进程临时注销全局快捷键，避免录制时被拦截
-    if (window.electronAPI && window.electronAPI.startHotkeyRecording) {
-        await window.electronAPI.startHotkeyRecording();
-    }
+    // 注意：全局快捷键已在打开设置面板时注销，这里不需要再次注销
 
     // 保存原始值，用于按下相同快捷键时恢复显示
     const originalValue = inputElement.value;
@@ -752,12 +760,8 @@ async function handleHotkeyRecording(e) {
     state.settingsChanged = true;
 
     // 清除录制状态
+    // 注意：全局快捷键将在关闭设置面板时统一重新注册
     state.recordingHotkey = null;
-
-    // 通知主进程重新注册快捷键
-    if (window.electronAPI && window.electronAPI.stopHotkeyRecording) {
-        await window.electronAPI.stopHotkeyRecording();
-    }
 }
 
 
@@ -851,11 +855,7 @@ function handleKeyboard(e) {
         togglePreview();
     }
 
-    // Ctrl+H: 隐藏当前便利贴
-    if (e.ctrlKey && e.key.toLowerCase() === 'h') {
-        e.preventDefault();
-        toggleHiddenNote();
-    }
+    // 注意：隐藏便利贴功能由全局快捷键管理（通过设置配置），不再硬编码
 
     // Ctrl+B: 加粗
     if (e.ctrlKey && e.key.toLowerCase() === 'b') {
@@ -1061,6 +1061,11 @@ function bindEvents() {
         if (success) {
             // 关闭设置面板
             elements.settingsModal.classList.remove('active');
+
+            // 关闭设置面板时重新注册全局快捷键
+            if (window.electronAPI && window.electronAPI.stopHotkeyRecording) {
+                await window.electronAPI.stopHotkeyRecording();
+            }
 
             // 恢复焦点 - 延迟执行，等待 CSS 过渡动画完成 (250ms)
             setTimeout(() => {

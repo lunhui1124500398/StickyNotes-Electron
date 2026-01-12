@@ -233,8 +233,8 @@ function registerHotkeys() {
             const formatted = formatHotkeyForElectron(config.hotkey_popout);
             console.log('Registering hotkey_popout:', formatted);
             globalShortcut.register(formatted, () => {
-                // 发送弹出消息到主窗口
-                if (mainWindow && !mainWindow.isDestroyed()) {
+                // 只有在主窗口可见时才触发弹出操作（需要当前选中的便利贴）
+                if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
                     mainWindow.webContents.send('trigger-popout');
                 }
             });
@@ -243,8 +243,9 @@ function registerHotkeys() {
             const formatted = formatHotkeyForElectron(config.hotkey_delete);
             console.log('Registering hotkey_delete:', formatted);
             globalShortcut.register(formatted, () => {
-                // 发送删除消息到主窗口
-                if (mainWindow && !mainWindow.isDestroyed()) {
+                // 只有在主窗口可见时才触发删除操作（需要当前选中的便利贴）
+                // 这样可以避免窗口隐藏时在其他应用中按 Delete 键误触发删除
+                if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
                     mainWindow.webContents.send('trigger-delete');
                 }
             });

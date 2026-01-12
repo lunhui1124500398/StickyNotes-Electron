@@ -307,7 +307,14 @@
     <!-- 调整大小手柄 -->
     <div class="resize-handle" id="resize-handle">⤡</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Markdown解析库 - 优先本地加载，CDN 作为后备 -->
+    <script src="../node_modules/marked/lib/marked.umd.js"></script>
+    <script>
+        if (typeof marked === 'undefined') {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>');
+            console.warn('本地 marked.js 加载失败，使用 CDN 后备');
+        }
+    </script>
     <script>
         // 获取URL参数中的便利贴ID
         const urlParams = new URLSearchParams(window.location.search);
